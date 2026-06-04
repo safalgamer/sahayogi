@@ -351,6 +351,21 @@ app.listen(PORT, () => {
   console.log(`Products loaded: ${products.length}`);
 });
 
-connectDB().then(connected => {
+connectDB().then(async connected => {
+  if (connected) {
+    try {
+      const Product = require('./models/Product');
+      const count = await Product.countDocuments();
+      if (count === 0) {
+        const { seedProducts } = require('./data/seedData');
+        await Product.insertMany(
+          seedProducts.map(({ _id, createdAt, lastUpdated, ...data }) => data)
+        );
+        console.log(`Seeded ${seedProducts.length} products into MongoDB`);
+      }
+    } catch (err) {
+      console.log('Auto-seed skipped:', err.message);
+    }
+  }
   console.log(`Database: ${connected ? 'MongoDB' : 'In-memory'}`);
 });
