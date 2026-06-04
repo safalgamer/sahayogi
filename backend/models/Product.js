@@ -61,17 +61,16 @@ productSchema.index({ isActive: 1, providerType: 1, loanType: 1 });
 productSchema.index({ name: 'text', description: 'text', provider: 'text' });
 productSchema.index({ minAmount: 1, maxAmount: 1 });
 
-productSchema.pre('validate', function(next) {
+productSchema.pre('validate', function() {
   if (this.minAmount > this.maxAmount) {
-    return next(new Error('minAmount must be <= maxAmount'));
+    throw new Error('minAmount must be <= maxAmount');
   }
   if (this.interestRateMin > this.interestRateMax) {
-    return next(new Error('interestRateMin must be <= interestRateMax'));
+    throw new Error('interestRateMin must be <= interestRateMax');
   }
   if (this.tenureMinMonths > this.tenureMaxMonths) {
-    return next(new Error('tenureMinMonths must be <= tenureMaxMonths'));
+    throw new Error('tenureMinMonths must be <= tenureMaxMonths');
   }
-  next();
 });
 
 module.exports = mongoose.model('Product', productSchema);
