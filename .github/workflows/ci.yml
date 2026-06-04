@@ -43,8 +43,12 @@ jobs:
     needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deploy
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+      - name: Trigger Render deploy via API
+        run: |
+          curl -s -X POST "https://api.render.com/v1/services/srv-d8gqbs57vvec7398g6rg/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
 
   deploy-frontend:
     if: github.ref == 'refs/heads/main'
