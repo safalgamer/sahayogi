@@ -2,9 +2,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches: [master, develop]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   test-backend:
@@ -39,7 +39,7 @@ jobs:
       - run: npm run build
 
   deploy-backend:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     steps:
@@ -51,7 +51,7 @@ jobs:
             -d '{}'
 
   deploy-frontend:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     steps:
@@ -60,7 +60,7 @@ jobs:
         uses: nwtgck/actions-netlify@v3
         with:
           publish-dir: frontend/build
-          production-branch: main
+          production-branch: master
           github-token: ${{ secrets.GITHUB_TOKEN }}
           deploy-message: "Deploy from GitHub Actions"
         env:
