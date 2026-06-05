@@ -30,7 +30,8 @@ const resetPasswordSchema = Joi.object({
   password: Joi.string().min(8).max(128).required()
     .pattern(/[a-z]/, 'lowercase')
     .pattern(/[A-Z]/, 'uppercase')
-    .pattern(/[0-9]/, 'number'),
+    .pattern(/[0-9]/, 'number')
+    .pattern(/[^a-zA-Z0-9]/, 'special character'),
 });
 
 const changePasswordSchema = Joi.object({
@@ -38,7 +39,8 @@ const changePasswordSchema = Joi.object({
   newPassword: Joi.string().min(8).max(128).required()
     .pattern(/[a-z]/, 'lowercase')
     .pattern(/[A-Z]/, 'uppercase')
-    .pattern(/[0-9]/, 'number'),
+    .pattern(/[0-9]/, 'number')
+    .pattern(/[^a-zA-Z0-9]/, 'special character'),
 });
 
 module.exports = {

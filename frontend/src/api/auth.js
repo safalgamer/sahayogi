@@ -1,4 +1,4 @@
-import apiClient, { setTokens, clearTokens } from './client';
+import apiClient, { setAccessToken, clearTokens } from './client';
 
 export async function login(email, password) {
   const data = await apiClient('/auth/login', {
@@ -6,7 +6,7 @@ export async function login(email, password) {
     body: { email, password },
     auth: false,
   });
-  setTokens(data.accessToken, data.refreshToken);
+  setAccessToken(data.accessToken);
   return data.user;
 }
 
@@ -16,7 +16,7 @@ export async function register(name, email, password) {
     body: { name, email, password },
     auth: false,
   });
-  setTokens(data.accessToken, data.refreshToken);
+  setAccessToken(data.accessToken);
   return data.user;
 }
 

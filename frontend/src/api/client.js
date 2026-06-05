@@ -1,5 +1,7 @@
 const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+let _accessToken = null;
+
 class ApiError extends Error {
   constructor(message, status, data) {
     super(message);
@@ -9,32 +11,23 @@ class ApiError extends Error {
   }
 }
 
-function getToken() {
-  return localStorage.getItem('sahayogi_access_token');
-}
-
-function getRefreshToken() {
-  return localStorage.getItem('sahayogi_refresh_token');
-}
-
-function setTokens(accessToken, refreshToken) {
-  if (accessToken) localStorage.setItem('sahayogi_access_token', accessToken);
-  if (refreshToken) localStorage.setItem('sahayogi_refresh_token', refreshToken);
+function setAccessToken(token) {
+  _accessToken = token;
 }
 
 function clearTokens() {
-  localStorage.removeItem('sahayogi_access_token');
-  localStorage.removeItem('sahayogi_refresh_token');
+  _accessToken = null;
+}
+
+function getAccessToken() {
+  return _accessToken;
 }
 
 async function refreshAccessToken() {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) throw new ApiError('No refresh token', 401);
-
   const res = await fetch(`${BASE_URL}/auth/refresh`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
   });
 
   if (!res.ok) {
@@ -43,7 +36,7 @@ async function refreshAccessToken() {
   }
 
   const data = await res.json();
-  setTokens(data.accessToken, data.refreshToken);
+  _accessToken = data.accessToken;
   return data.accessToken;
 }
 
@@ -56,14 +49,12 @@ async function apiClient(endpoint, options = {}) {
   const config = {
     method,
     headers: { 'Content-Type': 'application/json', ...headers },
+    credentials: 'include',
     signal: controller.signal,
   };
 
-  if (auth) {
-    const token = getToken();
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
+  if (auth && _accessToken) {
+    config.headers['Authorization'] = `Bearer ${_accessToken}`;
   }
 
   if (body) {
@@ -73,13 +64,10 @@ async function apiClient(endpoint, options = {}) {
   try {
     let res = await fetch(`${BASE_URL}${endpoint}`, config);
 
-    if (res.status === 401 && auth) {
-      const token = getToken();
-      if (token) {
-        const newToken = await refreshAccessToken();
-        config.headers['Authorization'] = `Bearer ${newToken}`;
-        res = await fetch(`${BASE_URL}${endpoint}`, config);
-      }
+    if (res.status === 401 && auth && _accessToken) {
+      const newToken = await refreshAccessToken();
+      config.headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${BASE_URL}${endpoint}`, config);
     }
 
     clearTimeout(timeoutId);
@@ -101,5 +89,5 @@ async function apiClient(endpoint, options = {}) {
   }
 }
 
-export { apiClient, setTokens, clearTokens, getToken, ApiError };
+export { apiClient, setAccessToken, clearTokens, getAccessToken, ApiError };
 export default apiClient;

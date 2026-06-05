@@ -13,6 +13,23 @@ function requireDB(req, res, next) {
   next();
 }
 
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  path: '/',
+};
+
+const setTokenCookies = (res, accessToken, refreshToken) => {
+  res.cookie('access_token', accessToken, { ...COOKIE_OPTS, maxAge: 15 * 60 * 1000 });
+  res.cookie('refresh_token', refreshToken, { ...COOKIE_OPTS, maxAge: 7 * 24 * 60 * 60 * 1000 });
+};
+
+const clearTokenCookies = (res) => {
+  res.clearCookie('access_token', { ...COOKIE_OPTS });
+  res.clearCookie('refresh_token', { ...COOKIE_OPTS });
+};
+
 const User = require('../models/User');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth');
@@ -29,6 +46,7 @@ router.post('/register', requireDB, validate(registerSchema), async (req, res, n
     const refreshToken = generateRefreshToken(user);
     user.refreshToken = refreshToken;
     await user.save();
+    setTokenCookies(res, accessToken, refreshToken);
     res.status(201).json({ user, accessToken, refreshToken });
   } catch (err) {
     next(err);
@@ -51,6 +69,7 @@ router.post('/login', requireDB, validate(loginSchema), async (req, res, next) =
     user.refreshToken = refreshToken;
     user.lastLogin = new Date();
     await user.save();
+    setTokenCookies(res, accessToken, refreshToken);
     res.json({ user, accessToken, refreshToken });
   } catch (err) {
     next(err);
@@ -61,6 +80,7 @@ router.post('/logout', authenticate, async (req, res, next) => {
   try {
     req.user.refreshToken = null;
     await req.user.save();
+    clearTokenCookies(res);
     res.json({ message: 'Logged out successfully' });
   } catch (err) {
     next(err);
@@ -69,19 +89,21 @@ router.post('/logout', authenticate, async (req, res, next) => {
 
 router.post('/refresh', async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies.refresh_token || req.body.refreshToken;
     if (!refreshToken) {
       throw new AppError('Refresh token required', 400);
     }
     const decoded = verifyRefreshToken(refreshToken);
     const user = await User.findById(decoded.id);
     if (!user || user.refreshToken !== refreshToken) {
+      clearTokenCookies(res);
       throw new AppError('Invalid refresh token', 401);
     }
     const newAccessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user);
     user.refreshToken = newRefreshToken;
     await user.save();
+    setTokenCookies(res, newAccessToken, newRefreshToken);
     res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
   } catch (err) {
     next(err);

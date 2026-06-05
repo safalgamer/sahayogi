@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { login as apiLogin, register as apiRegister, logout as apiLogout, refreshToken } from '../api/auth';
-import { getToken, setTokens, clearTokens } from '../api/client';
+import { login as apiLogin, register as apiRegister, logout as apiLogout } from '../api/auth';
+import { setAccessToken, clearTokens, apiClient } from '../api/client';
 
 export const AuthContext = createContext(null);
 
@@ -10,24 +10,15 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = getToken();
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.exp * 1000 > Date.now()) {
-          setUser({ id: payload.id, email: payload.email, role: payload.role });
-        } else {
-          refreshToken().then(data => {
-            setUser({ id: data.user?.id || payload.id, email: payload.email, role: payload.role });
-          }).catch(() => {
-            clearTokens();
-          });
-        }
-      } catch {
-        clearTokens();
-      }
-    }
-    setLoading(false);
+    apiClient('/auth/refresh', { auth: false }).then(data => {
+      setAccessToken(data.accessToken);
+      const payload = JSON.parse(atob(data.accessToken.split('.')[1]));
+      setUser({ id: payload.id, email: payload.email, role: payload.role });
+    }).catch(() => {
+      clearTokens();
+    }).finally(() => {
+      setLoading(false);
+    });
   }, []);
 
   const login = useCallback(async (email, password) => {

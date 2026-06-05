@@ -4,6 +4,8 @@ const dotenv = require('dotenv');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const cookieParser = require('cookie-parser');
 
 dotenv.config();
 
@@ -26,11 +28,24 @@ const authLimiter = rateLimit({
 });
 
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", process.env.CORS_ORIGIN || 'http://localhost:3000'],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000', credentials: true }));
+app.disable('x-powered-by');
+app.use(cors({ origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','), credentials: true }));
 app.use(express.json({ limit: '10kb' }));
+app.use(cookieParser());
+app.use(mongoSanitize());
 app.use(morgan('dev'));
 app.use('/api/', limiter);
 
@@ -103,7 +118,7 @@ app.get('/api/products', async (req, res, next) => {
 app.get('/api/products/search', async (req, res, next) => {
   try {
     const { q } = req.query;
-    if (!q) return res.json([]);
+    if (!q || typeof q !== 'string' || q.length > 200) return res.json([]);
     const Product = require('./models/Product');
     if (require('./config/database').isConnected()) {
       const results = await Product.find(

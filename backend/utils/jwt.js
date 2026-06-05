@@ -1,32 +1,33 @@
 const jwt = require('jsonwebtoken');
 
-const getSecret = () => process.env.JWT_SECRET || 'sahayogi_dev_secret_key_change_in_production';
-const getExpiresIn = () => process.env.JWT_EXPIRES_IN || '7d';
-const getRefreshExpiresIn = () => process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+function requireSecret(name) {
+  const val = process.env[name];
+  if (!val) throw new Error(`Missing required env var: ${name}`);
+  return val;
+}
 
 function generateAccessToken(user) {
   return jwt.sign(
     { id: user._id, role: user.role, email: user.email },
-    getSecret(),
-    { expiresIn: getExpiresIn() }
+    requireSecret('JWT_SECRET'),
+    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
   );
 }
 
 function generateRefreshToken(user) {
-  const refreshToken = jwt.sign(
+  return jwt.sign(
     { id: user._id },
-    getSecret() + '_refresh',
-    { expiresIn: getRefreshExpiresIn() }
+    requireSecret('JWT_REFRESH_SECRET'),
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
-  return refreshToken;
 }
 
 function verifyAccessToken(token) {
-  return jwt.verify(token, getSecret());
+  return jwt.verify(token, requireSecret('JWT_SECRET'));
 }
 
 function verifyRefreshToken(token) {
-  return jwt.verify(token, getSecret() + '_refresh');
+  return jwt.verify(token, requireSecret('JWT_REFRESH_SECRET'));
 }
 
 module.exports = {
