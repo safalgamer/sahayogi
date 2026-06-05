@@ -351,28 +351,6 @@ app.listen(PORT, () => {
   console.log(`Products loaded: ${products.length}`);
 });
 
-app.get('/api/debug/seed', async (req, res) => {
-  try {
-    const Product = require('./models/Product');
-    const { seedProducts } = require('./data/seedData');
-    let existing = await Product.countDocuments();
-    if (existing > 0) return res.json({ message: 'Already seeded', count: existing });
-    let seeded = 0, errors = [];
-    for (const seed of seedProducts) {
-      try {
-        const { _id, createdAt, lastUpdated, ...data } = seed;
-        await Product.create(data);
-        seeded++;
-      } catch (e) {
-        errors.push({ name: seed.name, error: e.message });
-      }
-    }
-    return res.json({ message: 'Seeding done', seeded, errors, total: seedProducts.length });
-  } catch (err) {
-    return res.status(500).json({ error: err.message, stack: err.stack });
-  }
-});
-
 connectDB().then(async connected => {
   if (connected) {
     try {
