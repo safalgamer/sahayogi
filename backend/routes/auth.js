@@ -34,12 +34,12 @@ const fs = require('fs');
 const path = require('path');
 
 const auditLog = (event, email, details = '') => {
-  const line = `${new Date().toISOString()} [${event}] ${email} ${details}\n`;
-  const logDir = path.join(__dirname, '..', 'logs');
-  if (!fs.existsSync(logDir)) {
-    try { fs.mkdirSync(logDir, { recursive: true }); } catch {}
-  }
-  fs.appendFile(path.join(logDir, 'auth.log'), line, () => {});
+  try {
+    const line = `${new Date().toISOString()} [${event}] ${email} ${details}\n`;
+    const logDir = path.join(__dirname, '..', 'logs');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(path.join(logDir, 'auth.log'), line);
+  } catch {}
 };
 
 const User = require('../models/User');

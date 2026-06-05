@@ -9,6 +9,14 @@ const cookieParser = require('cookie-parser');
 
 dotenv.config();
 
+process.on('unhandledRejection', (reason) => {
+  console.error(`[${new Date().toISOString()}] UNHANDLED REJECTION:`, reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error(`[${new Date().toISOString()}] UNCAUGHT EXCEPTION:`, err);
+});
+
 const { connectDB } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -388,4 +396,6 @@ connectDB().then(async connected => {
     }
   }
   console.log(`Database: ${connected ? 'MongoDB' : 'In-memory'}`);
+}).catch(err => {
+  console.log('MongoDB connection failed:', err.message);
 });
