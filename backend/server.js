@@ -13,6 +13,8 @@ const { connectDB } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const { errorHandler } = require('./middleware/errorHandler');
 
+const NEPAL_PROVINCES = ['Province 1', 'Madhesh', 'Bagmati', 'Gandaki', 'Lumbini', 'Karnali', 'Sudurpashchim'];
+
 const app = express();
 
 const limiter = rateLimit({
@@ -159,7 +161,10 @@ app.get('/api/products/:id', async (req, res, next) => {
 
 app.post('/api/eligibility/check', async (req, res, next) => {
   try {
-    const { businessType, establishedYear, monthlyRevenue, employeeCount = 0, loanAmount, loanPurpose = 'working_capital', hasCollateral = false, previousLoan = false } = req.body;
+    const { businessType, establishedYear, monthlyRevenue, employeeCount = 0, loanAmount, loanPurpose = 'working_capital', hasCollateral = false, previousLoan = false, province } = req.body;
+    if (province && !NEPAL_PROVINCES.includes(province)) {
+      return res.status(400).json({ message: 'Invalid province. Use: ' + NEPAL_PROVINCES.join(', ') });
+    }
     const yearsInBusiness = new Date().getFullYear() - parseInt(establishedYear);
 
     const Product = require('./models/Product');
@@ -256,7 +261,7 @@ app.post('/api/eligibility/check', async (req, res, next) => {
       }
 
       const provinces = criteria.provinces || [];
-      if (req.body.province && provinces.length > 0 && !provinces.includes(req.body.province)) {
+      if (province && provinces.length > 0 && !provinces.includes(province)) {
         matchScore -= 5;
         breakdown.province = -5;
         reasons.push('Product not available in your province');
@@ -286,7 +291,7 @@ app.post('/api/eligibility/check', async (req, res, next) => {
     if (require('./config/database').isConnected() && req.user) {
       await EligibilityCheck.create({
         user: req.user._id,
-        inputData: { businessType, establishedYear, monthlyRevenue, employeeCount, loanAmount, loanPurpose, hasCollateral, previousLoan, province: req.body.province },
+        inputData: { businessType, establishedYear, monthlyRevenue, employeeCount, loanAmount, loanPurpose, hasCollateral, previousLoan, province },
         results: topResults,
         topMatch: topResults[0]?.productName || 'none',
         totalProductsScored: sortedResults.length,

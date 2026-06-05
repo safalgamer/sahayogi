@@ -10,7 +10,7 @@ function authenticate(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = verifyAccessToken(token);
-    User.findById(decoded.id).select('+password').then(user => {
+    User.findById(decoded.id).then(user => {
       if (!user || !user.isActive) {
         return res.status(401).json({ message: 'User not found or deactivated' });
       }

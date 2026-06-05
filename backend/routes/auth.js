@@ -30,6 +30,18 @@ const clearTokenCookies = (res) => {
   res.clearCookie('refresh_token', { ...COOKIE_OPTS });
 };
 
+const fs = require('fs');
+const path = require('path');
+
+const auditLog = (event, email, details = '') => {
+  const line = `${new Date().toISOString()} [${event}] ${email} ${details}\n`;
+  const logDir = path.join(__dirname, '..', 'logs');
+  if (!fs.existsSync(logDir)) {
+    try { fs.mkdirSync(logDir, { recursive: true }); } catch {}
+  }
+  fs.appendFile(path.join(logDir, 'auth.log'), line, () => {});
+};
+
 const User = require('../models/User');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth');
@@ -47,8 +59,11 @@ router.post('/register', requireDB, validate(registerSchema), async (req, res, n
     user.refreshToken = refreshToken;
     await user.save();
     setTokenCookies(res, accessToken, refreshToken);
+    auditLog('REGISTER', email);
     res.status(201).json({ user, accessToken, refreshToken });
   } catch (err) {
+    const email = req.body?.email || 'unknown';
+    if (err.status === 409) auditLog('REGISTER_DUPLICATE', email);
     next(err);
   }
 });
@@ -58,10 +73,12 @@ router.post('/login', requireDB, validate(loginSchema), async (req, res, next) =
     const { email, password } = req.body;
     const user = await User.findOne({ email, isActive: true }).select('+password');
     if (!user) {
+      auditLog('LOGIN_FAIL', email, 'user not found');
       throw new AppError('Invalid email or password', 401);
     }
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      auditLog('LOGIN_FAIL', email, 'wrong password');
       throw new AppError('Invalid email or password', 401);
     }
     const accessToken = generateAccessToken(user);
@@ -70,6 +87,7 @@ router.post('/login', requireDB, validate(loginSchema), async (req, res, next) =
     user.lastLogin = new Date();
     await user.save();
     setTokenCookies(res, accessToken, refreshToken);
+    auditLog('LOGIN_OK', email);
     res.json({ user, accessToken, refreshToken });
   } catch (err) {
     next(err);
@@ -78,6 +96,7 @@ router.post('/login', requireDB, validate(loginSchema), async (req, res, next) =
 
 router.post('/logout', authenticate, async (req, res, next) => {
   try {
+    auditLog('LOGOUT', req.user.email);
     req.user.refreshToken = null;
     await req.user.save();
     clearTokenCookies(res);
@@ -96,6 +115,7 @@ router.post('/refresh', async (req, res, next) => {
     const decoded = verifyRefreshToken(refreshToken);
     const user = await User.findById(decoded.id);
     if (!user || user.refreshToken !== refreshToken) {
+      auditLog('REFRESH_FAIL', decoded?.email || 'unknown', 'token mismatch');
       clearTokenCookies(res);
       throw new AppError('Invalid refresh token', 401);
     }
@@ -104,6 +124,7 @@ router.post('/refresh', async (req, res, next) => {
     user.refreshToken = newRefreshToken;
     await user.save();
     setTokenCookies(res, newAccessToken, newRefreshToken);
+    auditLog('REFRESH_OK', user.email);
     res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
   } catch (err) {
     next(err);
@@ -114,13 +135,32 @@ router.post('/forgot-password', requireDB, validate(forgotPasswordSchema), async
   try {
     const user = await User.findOne({ email: req.body.email });
     if (!user) {
+      auditLog('FORGOT_PASSWORD', req.body.email, 'email not found');
       return res.json({ message: 'If that email exists, a reset link has been sent' });
     }
     const resetToken = crypto.randomBytes(32).toString('hex');
     user.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     user.passwordResetExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
+    auditLog('FORGOT_PASSWORD', req.body.email, 'token issued');
     res.json({ message: 'If that email exists, a reset link has been sent' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/change-password', authenticate, validate(changePasswordSchema), async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('+password');
+    const isMatch = await user.comparePassword(req.body.currentPassword);
+    if (!isMatch) {
+      throw new AppError('Current password is incorrect', 401);
+    }
+    user.password = req.body.newPassword;
+    user.refreshToken = null;
+    await user.save();
+    auditLog('CHANGE_PASSWORD', req.user.email);
+    res.json({ message: 'Password changed successfully' });
   } catch (err) {
     next(err);
   }
@@ -141,23 +181,8 @@ router.post('/reset-password/:token', validate(resetPasswordSchema), async (req,
     user.passwordResetExpires = undefined;
     user.refreshToken = null;
     await user.save();
+    auditLog('RESET_PASSWORD', user.email);
     res.json({ message: 'Password reset successful' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.put('/change-password', authenticate, validate(changePasswordSchema), async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user._id).select('+password');
-    const isMatch = await user.comparePassword(req.body.currentPassword);
-    if (!isMatch) {
-      throw new AppError('Current password is incorrect', 401);
-    }
-    user.password = req.body.newPassword;
-    user.refreshToken = null;
-    await user.save();
-    res.json({ message: 'Password changed successfully' });
   } catch (err) {
     next(err);
   }
